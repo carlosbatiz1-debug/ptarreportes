@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PTAR · Genomma Lab Planta San Cayetano — Sistema de Resultados</title>
+  <meta name="description" content="Sistema de registro y análisis de resultados de estudios de calidad de agua para la Planta de Tratamiento de Aguas Residuales de Genomma Lab, Planta San Cayetano.">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">💧</div>
+    <h1>PTAR · Resultados</h1>
+    <p>Genomma Lab · Planta San Cayetano</p>
+  </div>
+
+  <div class="sidebar-section">Análisis</div>
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-tab="dashboard" onclick="navigateTo('dashboard')">
+      <span class="nav-icon">📊</span> Dashboard General
+      <span id="badge-nc" class="nav-badge" style="display:none">0</span>
+    </button>
+  </nav>
+
+  <div class="sidebar-section">Registros</div>
+  <nav class="sidebar-nav">
+    <button class="nav-item" data-tab="entrada_quimica" onclick="navigateTo('entrada_quimica')">
+      <span class="nav-dot" style="background:#58a6ff"></span> Entrada Química
+      <span id="badge-entrada_quimica" class="nav-badge" style="display:none">0</span>
+    </button>
+    <button class="nav-item" data-tab="salida_quimica" onclick="navigateTo('salida_quimica')">
+      <span class="nav-dot" style="background:#3fb950"></span> Salida Química
+      <span id="badge-salida_quimica" class="nav-badge" style="display:none">0</span>
+    </button>
+    <button class="nav-item" data-tab="entrada_biologica" onclick="navigateTo('entrada_biologica')">
+      <span class="nav-dot" style="background:#ff9800"></span> Entrada Biológica
+      <span id="badge-entrada_biologica" class="nav-badge" style="display:none">0</span>
+    </button>
+    <button class="nav-item" data-tab="salida_biologica" onclick="navigateTo('salida_biologica')">
+      <span class="nav-dot" style="background:#bc8cff"></span> Salida Biológica
+      <span id="badge-salida_biologica" class="nav-badge" style="display:none">0</span>
+    </button>
+    <button class="nav-item" data-tab="mezcla" onclick="navigateTo('mezcla')">
+      <span class="nav-dot" style="background:#e3b341"></span> Mezcla
+      <span id="badge-mezcla" class="nav-badge" style="display:none">0</span>
+    </button>
+  </nav>
+
+  <div class="sidebar-section">Configuración</div>
+  <nav class="sidebar-nav">
+    <button class="nav-item" data-tab="limites" onclick="navigateTo('limites')">
+      <span class="nav-icon">⚙</span> Límites Permisibles
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div style="font-size:10px;color:var(--text-muted);text-align:center">Datos guardados localmente en el navegador</div>
+  </div>
+</aside>
+
+<!-- ═══ MAIN CONTENT ══════════════════════════════════════════════════ -->
+<main class="main-content">
+
+  <!-- ── DASHBOARD ───────────────────────────────────────────────── -->
+  <div id="panel-dashboard" class="panel active">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">Dashboard General</h2>
+        <p class="page-subtitle">Resumen de cumplimiento de todos los registros</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-print" id="btn-print-report" onclick="printDashboardReport()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Imprimir Reporte PDF
+        </button>
+      </div>
+    </div>
+    <div class="page-content">
+
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi-card" style="--kpi-color:var(--accent-blue)">
+          <div class="kpi-label">% Cumplimiento Global</div>
+          <div class="kpi-value" id="kpi-rate">—</div>
+          <div class="kpi-sub">De todos los parámetros medidos</div>
+          <div class="kpi-icon">📈</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color:var(--accent-green)">
+          <div class="kpi-label">Parámetros que Cumplen</div>
+          <div class="kpi-value" id="kpi-compliant" style="color:var(--accent-green)">0</div>
+          <div class="kpi-sub">Total acumulado histórico</div>
+          <div class="kpi-icon">✅</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color:var(--accent-red)">
+          <div class="kpi-label">Parámetros Incumplidos</div>
+          <div class="kpi-value" id="kpi-noncompliant">0</div>
+          <div class="kpi-sub">Requieren atención inmediata</div>
+          <div class="kpi-icon">⚠️</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color:var(--accent-purple)">
+          <div class="kpi-label">Meses Registrados</div>
+          <div class="kpi-value" id="kpi-months" style="color:var(--accent-purple)">0</div>
+          <div class="kpi-sub">En todos los tipos de muestra</div>
+          <div class="kpi-icon">📅</div>
+        </div>
+      </div>
+
+      <!-- KPI: Worst param -->
+      <div class="kpi-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:20px">
+        <div class="kpi-card" style="--kpi-color:var(--accent-red)">
+          <div class="kpi-label">Parámetro con más Incumplimientos</div>
+          <div style="font-size:22px;font-weight:800;color:var(--accent-red);letter-spacing:-.02em;margin-bottom:4px" id="kpi-worst">—</div>
+          <div class="kpi-sub" id="kpi-worst-count">Sin incumplimientos</div>
+          <div class="kpi-icon">🚨</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color:var(--accent-yellow)">
+          <div class="kpi-label">Estado del Sistema</div>
+          <div style="font-size:18px;font-weight:700;margin-bottom:4px;color:var(--accent-yellow)">Monitoreo Activo</div>
+          <div class="kpi-sub">Configura límites y registra resultados mensuales</div>
+          <div class="kpi-icon">🏭</div>
+        </div>
+      </div>
+
+      <!-- Charts row 1 -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Parámetros con más Incumplimientos</div>
+          <div class="chart-subtitle">Ranking histórico acumulado (top 15)</div>
+          <div class="chart-container" id="params-chart-wrap">
+            <canvas id="chart-params" height="280"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Distribución de Cumplimiento</div>
+          <div class="chart-subtitle">Proporción global cumple / no cumple</div>
+          <div class="chart-container" id="donut-chart-wrap">
+            <canvas id="chart-donut" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts row 2 -->
+      <div class="charts-grid-equal">
+        <div class="chart-card">
+          <div class="chart-title">Tendencia de Cumplimiento</div>
+          <div class="chart-subtitle">% cumplimiento mensual por tipo de muestra</div>
+          <div class="chart-container" id="trend-chart-wrap">
+            <canvas id="chart-trend" height="200"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Cumplimiento por Tipo de Muestra</div>
+          <div class="chart-subtitle">% acumulado por categoría</div>
+          <div class="chart-container">
+            <canvas id="chart-tabs" height="200"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alert table -->
+      <div class="table-card">
+        <div class="table-card-header">
+          <span class="table-card-title">🚨 Incumplimientos Recientes</span>
+          <span style="font-size:11px;color:var(--text-muted)">Últimos 30 registros que no cumplen con los límites establecidos</span>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr>
+              <th>Tipo de Muestra</th>
+              <th>Periodo</th>
+              <th>Parámetro</th>
+              <th>Valor Medido</th>
+              <th>Límite Permitido</th>
+            </tr></thead>
+            <tbody id="alert-tbody">
+              <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted)">Sin datos registrados aún</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- CONDITIONS DASHBOARD SECTION -->
+      <div class="table-card">
+        <div class="table-card-header">
+          <span class="table-card-title">📋 Condiciones Especiales</span>
+          <span style="font-size:11px;color:var(--text-muted)">Observaciones y condiciones especiales registradas mes a mes</span>
+        </div>
+        <div id="conditions-dashboard-list" class="conditions-list"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── DATA PANELS (one per tab) ────────────────────────────────── -->
+  <div id="panel-entrada_quimica" class="panel">
+    <div id="panel-content-entrada_quimica"></div>
+  </div>
+  <div id="panel-salida_quimica" class="panel">
+    <div id="panel-content-salida_quimica"></div>
+  </div>
+  <div id="panel-entrada_biologica" class="panel">
+    <div id="panel-content-entrada_biologica"></div>
+  </div>
+  <div id="panel-salida_biologica" class="panel">
+    <div id="panel-content-salida_biologica"></div>
+  </div>
+  <div id="panel-mezcla" class="panel">
+    <div id="panel-content-mezcla"></div>
+  </div>
+
+  <!-- ── LIMITS PANEL ──────────────────────────────────────────────── -->
+  <div id="panel-limites" class="panel">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">⚙ Configuración de Límites Permisibles</h2>
+        <p class="page-subtitle">Define el valor mínimo y/o máximo permitido para cada parámetro. Aplica para todos los tipos de muestra.</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="saveLimitsForm()">💾 Guardar Límites</button>
+      </div>
+    </div>
+    <div class="page-content">
+      <div style="background:rgba(255,152,0,.08);border:1px solid rgba(255,152,0,.25);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:var(--accent-orange)">
+        ⚠ Al guardar límites, se recalcula automáticamente el cumplimiento de todos los registros históricos existentes.
+        <br>Deja un campo en blanco si no aplica ese límite para el parámetro.
+      </div>
+      <div class="limits-grid" id="limits-grid"></div>
+      <div style="margin-top:20px">
+        <button class="btn btn-primary" onclick="saveLimitsForm()">💾 Guardar todos los Límites</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── MODAL: CONDICIONES ESPECIALES ────────────────────────────────── -->
+<div class="modal-overlay" id="modal-conditions" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>📋 Condiciones Especiales del Mes</h3>
+      <button class="modal-close" onclick="closeConditionsModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <span class="modal-label">Periodo registrado</span>
+      <div class="modal-period" id="modal-conditions-period">—</div>
+      <span class="modal-label">Descripción de condiciones especiales</span>
+      <textarea class="modal-textarea" id="modal-conditions-text"
+        placeholder="Describe las condiciones especiales presentadas durante este mes: anomalías, eventos, mantenimientos, situaciones fuera de lo normal, etc."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeConditionsModal()">Cancelar</button>
+      <button class="btn btn-special" onclick="saveConditionsModal()">💾 Guardar Condiciones</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ──────────────────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+
+<script>
+// Build data panels dynamically for each tab
+(function buildDataPanels() {
+  const tabs = [
+    { id: 'entrada_quimica', name: 'Entrada Química', color: '#58a6ff' },
+    { id: 'salida_quimica', name: 'Salida Química', color: '#3fb950' },
+    { id: 'entrada_biologica', name: 'Entrada Biológica', color: '#ff9800' },
+    { id: 'salida_biologica', name: 'Salida Biológica', color: '#bc8cff' },
+    { id: 'mezcla', name: 'Mezcla', color: '#e3b341' },
+  ];
+
+  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const curYear = new Date().getFullYear();
+  const curMonth = new Date().getMonth() + 1;
+
+  for (const tab of tabs) {
+    const container = document.getElementById(`panel-content-${tab.id}`);
+    if (!container) continue;
+
+    const monthOptions = months.map((m, i) => `<option value="${i+1}" ${i+1===curMonth?'selected':''}>${m}</option>`).join('');
+
+    container.innerHTML = `
+      <!-- Header -->
+      <div class="page-header">
+        <div>
+          <h2 class="page-title"><span style="color:${tab.color}">●</span> ${tab.name}</h2>
+          <p class="page-subtitle">Registro mensual de resultados de estudio</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-success" onclick="saveDataForm('${tab.id}')">💾 Guardar Registro</button>
+          ${tab.id === 'mezcla' ? `<button class="btn btn-special" onclick="openConditionsModal('${tab.id}')">📋 Condiciones Especiales</button>` : ''}
+          <button class="btn btn-secondary btn-sm" onclick="exportCSV('${tab.id}')">⬇ CSV</button>
+        </div>
+      </div>
+
+      <div class="page-content">
+        <!-- View toggle -->
+        <div class="view-tabs">
+          <button class="view-tab active" id="view-form-${tab.id}" onclick="switchView('${tab.id}','form')">📝 Captura de Datos</button>
+          <button class="view-tab" id="view-history-${tab.id}" onclick="switchView('${tab.id}','history')">📋 Histórico</button>
+        </div>
+
+        <!-- Controls -->
+        <div id="form-section-${tab.id}">
+          <div class="data-controls">
+            <div class="ctrl-group">
+              <span class="ctrl-label">Año</span>
+              <select class="ctrl-select" id="year-${tab.id}" onchange="renderDataForm(TABS.find(t=>t.id==='${tab.id}'))">
+                <option value="${curYear}">${curYear}</option>
+                <option value="${curYear-1}">${curYear-1}</option>
+                <option value="${curYear-2}">${curYear-2}</option>
+              </select>
+            </div>
+            <div class="ctrl-group">
+              <span class="ctrl-label">Mes</span>
+              <select class="ctrl-select" id="month-${tab.id}" onchange="renderDataForm(TABS.find(t=>t.id==='${tab.id}'))">${monthOptions}</select>
+            </div>
+            <button class="btn btn-primary" onclick="renderDataForm(TABS.find(t=>t.id==='${tab.id}'))">🔍 Cargar</button>
+            <button class="btn btn-success" onclick="saveDataForm('${tab.id}')">💾 Guardar</button>
+          </div>
+
+          <!-- Summary bar -->
+          <div class="summary-bar" id="summary-${tab.id}">
+            <div class="summary-item"><span class="summary-label">Medidos</span><span class="summary-value" style="color:var(--accent-blue)">0</span></div>
+            <div class="summary-item"><span class="summary-label">Cumplen</span><span class="summary-value" style="color:var(--accent-green)">0</span></div>
+            <div class="summary-item"><span class="summary-label">No Cumplen</span><span class="summary-value" style="color:var(--text-muted)">0</span></div>
+            <div class="summary-item"><span class="summary-label">% Cumplimiento</span><span class="summary-value" style="color:var(--text-muted)">—</span></div>
+          </div>
+
+          <!-- Data table -->
+          <div class="table-card">
+            <div class="table-card-header">
+              <span class="table-card-title">Parámetros de Calidad del Agua</span>
+              <span style="font-size:11px;color:var(--text-muted)">31 parámetros · Los límites se configuran en ⚙ Límites Permisibles</span>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="data-table">
+                <thead><tr>
+                  <th>Parámetro</th>
+                  <th>Unidad</th>
+                  <th>Límite Permitido</th>
+                  <th>Valor Medido</th>
+                  <th>Cumplimiento</th>
+                </tr></thead>
+                <tbody id="tbody-${tab.id}">
+                  <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted)">Selecciona año y mes, luego haz clic en Cargar</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <button class="btn btn-success" onclick="saveDataForm('${tab.id}')">💾 Guardar Registro del Mes</button>
+          </div>
+        </div>
+
+        <!-- History section -->
+        <div id="history-${tab.id}" style="display:none"></div>
+      </div>`;
+  }
+})();
+
+function switchView(tabId, view) {
+  activeDataView[tabId] = view;
+  const formSection = document.getElementById(`form-section-${tabId}`);
+  const histSection = document.getElementById(`history-${tabId}`);
+  document.getElementById(`view-form-${tabId}`).classList.toggle('active', view === 'form');
+  document.getElementById(`view-history-${tabId}`).classList.toggle('active', view === 'history');
+  if (formSection) formSection.style.display = view === 'form' ? '' : 'none';
+  if (histSection) histSection.style.display = view === 'history' ? '' : 'none';
+  const tab = TABS.find(t => t.id === tabId);
+  if (view === 'history' && tab) renderHistoryTable(tab);
+}
+</script>
+</body>
+</html>
