@@ -57,6 +57,13 @@
     </button>
   </nav>
 
+  <div class="sidebar-section">Acciones</div>
+  <nav class="sidebar-nav">
+    <button class="nav-item" data-tab="investigacion" onclick="navigateTo('investigacion')">
+      <span class="nav-icon">🔍</span> Investigación
+    </button>
+  </nav>
+
   <div class="sidebar-footer">
     <div style="font-size:10px;color:var(--text-muted);text-align:center">Datos guardados localmente en el navegador</div>
   </div>
@@ -153,11 +160,46 @@
           </div>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Cumplimiento por Tipo de Muestra</div>
-          <div class="chart-subtitle">% acumulado por categoría</div>
-          <div class="chart-container">
-            <canvas id="chart-tabs" height="200"></canvas>
+          <div class="chart-title" style="margin-bottom:6px">Matriz de Análisis de Riesgo</div>
+          <div class="chart-subtitle" style="margin-bottom:12px">Desviación del límite vs Frecuencia de falla</div>
+          <div class="risk-matrix">
+            <div class="rm-corner"></div>
+            <div class="rm-header" style="border-bottom: 2px solid var(--accent-green)">Riesgo Bajo<br><span style="font-size:9px;font-weight:400;opacity:0.8">0.1% a 20%</span></div>
+            <div class="rm-header" style="border-bottom: 2px solid var(--accent-orange)">Riesgo Medio<br><span style="font-size:9px;font-weight:400;opacity:0.8">20.1% a 50%</span></div>
+            <div class="rm-header" style="border-bottom: 2px solid var(--accent-red)">Riesgo Alto<br><span style="font-size:9px;font-weight:400;opacity:0.8">> 50%</span></div>
+            
+            <div class="rm-y-label">Alta</div>
+            <div class="rm-cell rm-med" id="rm-cell-freq-low"></div>
+            <div class="rm-cell rm-high" id="rm-cell-freq-med"></div>
+            <div class="rm-cell rm-high" id="rm-cell-freq-high"></div>
+
+            <div class="rm-y-label">Media</div>
+            <div class="rm-cell rm-low" id="rm-cell-occ-low"></div>
+            <div class="rm-cell rm-med" id="rm-cell-occ-med"></div>
+            <div class="rm-cell rm-high" id="rm-cell-occ-high"></div>
+
+            <div class="rm-y-label">Baja</div>
+            <div class="rm-cell rm-low" id="rm-cell-rare-low"></div>
+            <div class="rm-cell rm-low" id="rm-cell-rare-med"></div>
+            <div class="rm-cell rm-med" id="rm-cell-rare-high"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- Charts row 3 (Investigaciones) -->
+      <div class="charts-grid-equal" style="margin-top:14px">
+        <div class="chart-card">
+          <div class="chart-title">Estatus de Investigaciones</div>
+          <div class="chart-subtitle">Proporción de seguimientos abiertos y cerrados</div>
+          <div class="chart-container" id="inv-status-chart-wrap">
+            <canvas id="chart-inv-status" height="200"></canvas>
+          </div>
+        </div>
+        <div class="chart-card" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center">
+          <div class="chart-title" style="margin-bottom:10px;font-size:16px">Acciones Abiertas</div>
+          <div style="font-size:62px;font-weight:800;color:var(--accent-orange);line-height:1;margin-bottom:10px" id="kpi-inv-abiertas">0</div>
+          <div style="font-size:13px;color:var(--text-secondary)">Investigaciones pendientes de cierre</div>
+          <button class="btn btn-secondary" style="margin-top:20px" onclick="navigateTo('investigacion')">Ir a Investigaciones</button>
         </div>
       </div>
 
@@ -232,6 +274,152 @@
       <div style="margin-top:20px">
         <button class="btn btn-primary" onclick="saveLimitsForm()">💾 Guardar todos los Límites</button>
       </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ── INVESTIGACIÓN PANEL ──────────────────────────────────────── -->
+  <div id="panel-investigacion" class="panel">
+    <div class="page-header no-print">
+      <div>
+        <h2 class="page-title">🔍 Investigación de Incumplimientos</h2>
+        <p class="page-subtitle">Análisis causa raíz, plan de acción y evidencias</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary no-print" onclick="newInvestigation()">➕ Nueva Investigación</button>
+        <button class="btn btn-success no-print" onclick="saveInvestigation()">💾 Guardar Investigación</button>
+        <button class="btn btn-print" onclick="window.print()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Imprimir Reporte
+        </button>
+      </div>
+    </div>
+    <div class="page-content print-area">
+
+      <div class="print-header-only" style="display:none; margin-bottom:20px;">
+        <div style="font-size:20px; font-weight:800; margin-bottom:6px; color:#1a1a2e;">Reporte de Investigación de Incumplimiento</div>
+        <div style="font-size:12px; color:#555;">Genomma Lab · Planta San Cayetano — PTAR</div>
+      </div>
+
+      <!-- Parámetros en incumplimiento actuales -->
+      <div class="table-card no-print">
+        <div class="table-card-header">
+          <span class="table-card-title">🚨 Parámetros con Incumplimientos Recientes</span>
+        </div>
+        <div style="padding:16px;">
+          <div id="inv-nc-list" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+        </div>
+      </div>
+
+      <div class="table-card" style="border:none;" id="inv-form-card">
+        <div class="table-card-header no-print">
+          <div class="table-card-header no-print">
+          <span class="table-card-title">📝 Formato de Investigación <span id="inv-folio-display" style="color:var(--text-muted); margin-left:10px; font-weight:normal; font-family:monospace; background:var(--bg-hover); padding:2px 6px; border-radius:4px;">Folio: Nuevo</span></span>
+        </div>
+        <div style="padding:20px; display:flex; flex-direction:column; gap:24px;" class="print-padding-0">
+          
+          <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;">
+            <div style="display:flex; flex-direction:column; gap:8px; flex:1; min-width:260px;">
+              <label class="ctrl-label">Parámetro que incumple</label>
+              <select class="ctrl-select print-input" id="inv-param" style="width:100%; max-width:400px; font-weight:600; font-size:14px; padding:10px;">
+                <option value="">-- Selecciona el parámetro --</option>
+              </select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <label class="ctrl-label">Estado de la Investigación</label>
+              <select class="ctrl-select print-input" id="inv-estado" style="width:160px; font-weight:600; padding:10px;">
+                <option value="abierta">🟠 Abierta</option>
+                <option value="cerrada">🟢 Cerrada</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:12px; font-weight:600; margin-bottom:10px; color:var(--text-primary); text-transform:uppercase; letter-spacing:0.05em" class="print-text-dark">Equipo de Investigación</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
+              <div class="ctrl-group">
+                <span class="ctrl-label">Seguridad (Nombre)</span>
+                <input type="text" class="ctrl-input print-input" id="inv-seguridad" placeholder="Nombre completo">
+              </div>
+              <div class="ctrl-group">
+                <span class="ctrl-label">Calidad (Nombre)</span>
+                <input type="text" class="ctrl-input print-input" id="inv-calidad" placeholder="Nombre completo">
+              </div>
+              <div class="ctrl-group">
+                <span class="ctrl-label">Operación (Nombre)</span>
+                <input type="text" class="ctrl-input print-input" id="inv-operacion" placeholder="Nombre completo">
+              </div>
+            </div>
+          </div>
+
+          <div class="ctrl-group">
+            <span class="ctrl-label">Análisis Causa Raíz</span>
+            <textarea class="modal-textarea print-textarea" id="inv-causa" style="min-height:100px;" placeholder="Describe detalladamente el análisis causa raíz del problema..."></textarea>
+          </div>
+
+          <div class="ctrl-group">
+            <span class="ctrl-label">Plan de Acción</span>
+            <textarea class="modal-textarea print-textarea" id="inv-plan" style="min-height:100px;" placeholder="Describe las acciones correctivas y preventivas a tomar..."></textarea>
+          </div>
+
+          <div style="border:1px solid var(--border); border-radius:8px; padding:16px; background:rgba(255,152,0,0.03);" class="print-border-box">
+            <div style="font-size:12px; font-weight:600; margin-bottom:12px; color:var(--accent-orange); text-transform:uppercase; letter-spacing:0.05em" class="print-text-dark">Responsable del Plan de Acción</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
+              <div class="ctrl-group">
+                <span class="ctrl-label">Nombre</span>
+                <input type="text" class="ctrl-input print-input" id="inv-resp-nombre" placeholder="Nombre del responsable">
+              </div>
+              <div class="ctrl-group">
+                <span class="ctrl-label">Área</span>
+                <input type="text" class="ctrl-input print-input" id="inv-resp-area" placeholder="Ej. Mantenimiento">
+              </div>
+              <div class="ctrl-group">
+                <span class="ctrl-label">Fecha de Inicio</span>
+                <input type="date" class="ctrl-input print-input" id="inv-resp-inicio">
+              </div>
+              <div class="ctrl-group">
+                <span class="ctrl-label">Fecha de Término</span>
+                <input type="date" class="ctrl-input print-input" id="inv-resp-termino">
+              </div>
+            </div>
+          </div>
+
+          <div class="ctrl-group no-print">
+            <span class="ctrl-label">Evidencia de Cumplimiento (PDF)</span>
+            <div style="border:1px dashed var(--border); padding:24px; text-align:center; border-radius:8px; background:var(--bg-input);">
+              <input type="file" accept=".pdf" id="inv-pdf" style="display:none;" onchange="document.getElementById('inv-pdf-name').innerHTML = this.files[0] ? '<span style=\'color:var(--accent-green);font-weight:600\'>✓ Archivo seleccionado: </span>' + this.files[0].name : 'Ningún archivo seleccionado'">
+              <button class="btn btn-secondary" onclick="document.getElementById('inv-pdf').click()">📂 Seleccionar Archivo PDF</button>
+              <div id="inv-pdf-name" style="margin-top:10px; font-size:12px; color:var(--text-muted)">Ningún archivo seleccionado</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Histórico de Investigaciones -->
+      <div class="table-card no-print" style="margin-top: 24px;">
+        <div class="table-card-header">
+          <span class="table-card-title">📂 Histórico de Investigaciones</span>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Folio</th>
+                <th>Fecha Guardada</th>
+                <th>Parámetro</th>
+                <th>Estado</th>
+                <th>Responsable</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="inv-history-list">
+              <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">Sin registros de investigación</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   </div>
 

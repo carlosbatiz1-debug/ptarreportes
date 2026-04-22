@@ -20,6 +20,7 @@ function navigateTo(tabId) {
 
   if (tabId === 'dashboard') renderDashboard();
   else if (tabId === 'limites') renderLimitsPanel();
+  else if (tabId === 'investigacion') renderInvestigacionPanel();
   else {
     const tab = TABS.find(t => t.id === tabId);
     if (tab) renderDataPanel(tab);
@@ -77,14 +78,17 @@ function renderDashboard() {
   // Chart 3: Trend over time (line)
   renderTrendChart();
 
-  // Chart 4: % compliance per tab (bar)
-  renderTabBarChart(stats.tabStats);
+  // Chart 4: Risk Matrix
+  renderRiskMatrix(recent, stats.paramNonCompliance);
 
   // Alert table
   renderAlertTable(recent);
 
   // Conditions list
   renderConditionsList();
+
+  // Investigation Status Chart
+  renderInvStatusChart();
 
   // Update non-compliant count on nav badges
   updateNavBadges();
@@ -201,24 +205,93 @@ function renderTrendChart() {
   });
 }
 
-function renderTabBarChart(tabStats) {
-  destroyChart('chart-tabs');
-  const canvas = document.getElementById('chart-tabs');
+function renderRiskMatrix(recentNc, frequencies) {
+  const limits = getLimits();
+  const uniqueDev = {};
+
+  ['freq-low','freq-med','freq-high','occ-low','occ-med','occ-high','rare-low','rare-med','rare-high']
+    .forEach(id => { const el = document.getElementById('rm-cell-' + id); if (el) el.innerHTML = ''; });
+
+  if (!recentNc || !recentNc.length) return;
+
+  recentNc.forEach(nc => {
+    const p = nc.param;
+    const val = typeof nc.value === 'string' ? parseFloat(nc.value) : nc.value;
+    const limit = limits[p.id];
+    let devFreq = frequencies && frequencies[p.id] ? frequencies[p.id] : 1;
+    let devPct = 100; // boolean defaults to high risk
+
+    if (p.type !== 'boolean' && limit && !isNaN(val)) {
+      if (limit.max != null && limit.max !== '' && val > parseFloat(limit.max)) {
+        devPct = ((val - parseFloat(limit.max)) / parseFloat(limit.max)) * 100;
+      } else if (limit.min != null && limit.min !== '' && val < parseFloat(limit.min)) {
+        devPct = ((parseFloat(limit.min) - val) / parseFloat(limit.min)) * 100;
+      }
+    }
+
+    if (!uniqueDev[p.id] || devPct > uniqueDev[p.id].dev) {
+       uniqueDev[p.id] = { param: p, dev: devPct, freq: devFreq };
+    }
+  });
+
+  Object.values(uniqueDev).forEach(u => {
+    let xClass = '', xSuffix = '';
+    if (u.dev <= 20) { xClass = 'rm-low'; xSuffix = '-low'; }
+    else if (u.dev <= 50) { xClass = 'rm-med'; xSuffix = '-med'; }
+    else { xClass = 'rm-high'; xSuffix = '-high'; }
+    
+    let ySuffix = '';
+    if (u.freq >= 4) ySuffix = 'freq';
+    else if (u.freq >= 2) ySuffix = 'occ';
+    else ySuffix = 'rare';
+
+    const cell = document.getElementById(`rm-cell-${ySuffix}${xSuffix}`);
+    if (cell) {
+       const sphere = document.createElement('div');
+       sphere.className = `rm-sphere ${xClass}`;
+       sphere.title = `${u.param.name}\nDesviación: ${u.dev.toFixed(1)}%\nFallos: ${u.freq}`;
+       sphere.textContent = u.param.name;
+       cell.appendChild(sphere);
+    }
+  });
+}
+
+function renderInvStatusChart() {
+  destroyChart('chart-inv-status');
+  const canvas = document.getElementById('chart-inv-status');
   if (!canvas) return;
 
-  const labels = TABS.map(t => t.name.replace('Entrada ', 'Ent. ').replace('Salida ', 'Sal. '));
-  const rates = TABS.map(t => tabStats[t.id]?.rate !== null ? parseFloat(tabStats[t.id]?.rate) : 0);
-  const colors = rates.map(r => r >= 90 ? 'rgba(63,185,80,0.8)' : r >= 70 ? 'rgba(255,152,0,0.8)' : 'rgba(248,81,73,0.8)');
+  const all = getAllInvestigations();
+  let abiertas = 0, cerradas = 0;
+  all.forEach(i => {
+    if (i.estado === 'cerrada') cerradas++;
+    else abiertas++;
+  });
 
-  chartInstances['chart-tabs'] = new Chart(canvas, {
-    type: 'bar',
-    data: { labels, datasets: [{ data: rates, backgroundColor: colors, borderRadius: 5, borderSkipped: false }] },
+  const kpiEl = document.getElementById('kpi-inv-abiertas');
+  if (kpiEl) kpiEl.textContent = abiertas;
+
+  if (all.length === 0) {
+    canvas.parentElement.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Sin investigaciones</div></div>`;
+    return;
+  }
+
+  chartInstances['chart-inv-status'] = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: ['Abiertas', 'Cerradas'],
+      datasets: [{
+        data: [abiertas, cerradas],
+        backgroundColor: ['rgba(255,152,0,0.8)', 'rgba(63,185,80,0.8)'],
+        borderColor: ['#1c2333'],
+        borderWidth: 2
+      }]
+    },
     options: {
       responsive: true,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y}% cumplimiento` } } },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: '#8b949e', font: { size: 10 } } },
-        y: { min: 0, max: 100, grid: { color: 'rgba(48,54,61,0.6)' }, ticks: { color: '#8b949e', callback: v => v+'%' } }
+      cutout: '70%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#8b949e', font: { size: 11 }, padding: 12, boxWidth: 12 } }
       }
     }
   });
@@ -612,6 +685,176 @@ function init() {
 }
 
 window.addEventListener('DOMContentLoaded', init);
+
+// ─── INVESTIGACIÓN PANEL ──────────────────────────────────────────────
+let currentInvId = null;
+
+function renderInvestigacionPanel() {
+  const recentNc = getRecentNonCompliant(100);
+  
+  const listContainer = document.getElementById('inv-nc-list');
+  const paramSelect = document.getElementById('inv-param');
+  
+  if (!listContainer || !paramSelect) return;
+  
+  const selectedParam = paramSelect.value;
+
+  if (!recentNc || !recentNc.length) {
+    listContainer.innerHTML = `<div style="color:var(--text-muted); padding:10px;">✅ No hay parámetros en incumplimiento reciente registrados.</div>`;
+    paramSelect.innerHTML = `<option value="">-- No hay incumplimientos registrados --</option>`;
+  } else {
+    const uniqueParams = {};
+    recentNc.forEach(nc => {
+      if (!uniqueParams[nc.param.id]) {
+        uniqueParams[nc.param.id] = { param: nc.param, tabs: new Set() };
+      }
+      uniqueParams[nc.param.id].tabs.add(nc.tab.name);
+    });
+    
+    listContainer.innerHTML = Object.values(uniqueParams).map(u => 
+      `<span class="badge badge-red" style="padding:6px 10px; font-size:12px;">🚨 ${u.param.name} <span style="opacity:0.7; font-weight:400; font-size:10px; margin-left:4px">(${Array.from(u.tabs).join(', ')})</span></span>`
+    ).join('');
+    
+    paramSelect.innerHTML = `<option value="">-- Selecciona el parámetro --</option>` + 
+      Object.values(uniqueParams).map(u => `<option value="${u.param.name}">${u.param.name} (${Array.from(u.tabs).join(', ')})</option>`).join('');
+    if (selectedParam) paramSelect.value = selectedParam;
+  }
+  
+  renderInvestigationHistory();
+  
+  if (currentInvId === null) {
+    document.getElementById('inv-folio-display').textContent = 'Folio: Nuevo';
+  }
+}
+
+function newInvestigation() {
+  currentInvId = null;
+  document.getElementById('inv-folio-display').textContent = 'Folio: Nuevo';
+  document.getElementById('inv-param').value = '';
+  document.getElementById('inv-estado').value = 'abierta';
+  document.getElementById('inv-seguridad').value = '';
+  document.getElementById('inv-calidad').value = '';
+  document.getElementById('inv-operacion').value = '';
+  document.getElementById('inv-causa').value = '';
+  document.getElementById('inv-plan').value = '';
+  document.getElementById('inv-resp-nombre').value = '';
+  document.getElementById('inv-resp-area').value = '';
+  document.getElementById('inv-resp-inicio').value = '';
+  document.getElementById('inv-resp-termino').value = '';
+  const pdfName = document.getElementById('inv-pdf-name');
+  if (pdfName) pdfName.textContent = 'Ningún archivo seleccionado';
+  showToast('Formulario limpio para nueva investigación', 'success');
+}
+
+function saveInvestigation() {
+  const param = document.getElementById('inv-param').value;
+  if (!param) { showToast('Selecciona el parámetro que incumple', 'error'); return; }
+  
+  const all = getAllInvestigations();
+  
+  let isNew = false;
+  let inv;
+  if (currentInvId === null) {
+    isNew = true;
+    const nextId = all.length > 0 ? Math.max(...all.map(i => i.id)) + 1 : 1;
+    inv = { id: nextId, createdAt: new Date().toISOString() };
+  } else {
+    inv = all.find(i => i.id === currentInvId);
+    if (!inv) return;
+  }
+  
+  inv.param = param;
+  inv.estado = document.getElementById('inv-estado').value;
+  inv.seguridad = document.getElementById('inv-seguridad').value;
+  inv.calidad = document.getElementById('inv-calidad').value;
+  inv.operacion = document.getElementById('inv-operacion').value;
+  inv.causa = document.getElementById('inv-causa').value;
+  inv.plan = document.getElementById('inv-plan').value;
+  inv.respNombre = document.getElementById('inv-resp-nombre').value;
+  inv.respArea = document.getElementById('inv-resp-area').value;
+  inv.respInicio = document.getElementById('inv-resp-inicio').value;
+  inv.respTermino = document.getElementById('inv-resp-termino').value;
+  inv.updatedAt = new Date().toISOString();
+  
+  if (isNew) all.push(inv);
+  else {
+    const idx = all.findIndex(i => i.id === inv.id);
+    if (idx !== -1) all[idx] = inv;
+  }
+  
+  saveInvestigations(all);
+  currentInvId = inv.id;
+  document.getElementById('inv-folio-display').textContent = `Folio: INV-${String(inv.id).padStart(4, '0')}`;
+  
+  showToast(`Investigación ${isNew ? 'creada' : 'actualizada'} correctamente`, 'success');
+  renderInvestigationHistory();
+}
+
+function loadInvestigationToForm(id) {
+  const all = getAllInvestigations();
+  const inv = all.find(i => i.id === id);
+  if (!inv) return;
+  
+  currentInvId = inv.id;
+  document.getElementById('inv-folio-display').textContent = `Folio: INV-${String(inv.id).padStart(4, '0')}`;
+  
+  const paramSelect = document.getElementById('inv-param');
+  // Auto add to option if it no longer exists (e.g. historical data)
+  if (!Array.from(paramSelect.options).some(o => o.value === inv.param) && inv.param) {
+    const opt = document.createElement('option'); opt.value = inv.param; opt.textContent = inv.param + ' (Histórico)';
+    paramSelect.appendChild(opt);
+  }
+  
+  document.getElementById('inv-param').value = inv.param || '';
+  document.getElementById('inv-estado').value = inv.estado || 'abierta';
+  document.getElementById('inv-seguridad').value = inv.seguridad || '';
+  document.getElementById('inv-calidad').value = inv.calidad || '';
+  document.getElementById('inv-operacion').value = inv.operacion || '';
+  document.getElementById('inv-causa').value = inv.causa || '';
+  document.getElementById('inv-plan').value = inv.plan || '';
+  document.getElementById('inv-resp-nombre').value = inv.respNombre || '';
+  document.getElementById('inv-resp-area').value = inv.respArea || '';
+  document.getElementById('inv-resp-inicio').value = inv.respInicio || '';
+  document.getElementById('inv-resp-termino').value = inv.respTermino || '';
+  
+  showToast(`Cargada la investigación INV-${String(inv.id).padStart(4, '0')}`, 'success');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderInvestigationHistory() {
+  const all = getAllInvestigations();
+  const tbody = document.getElementById('inv-history-list');
+  if (!tbody) return;
+  
+  if (!all.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted)">Sin registros de investigación</td></tr>`;
+    return;
+  }
+  
+  all.sort((a,b) => b.id - a.id);
+  
+  tbody.innerHTML = all.map(inv => {
+    const d = new Date(inv.updatedAt || inv.createdAt);
+    const dateStr = d.toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'}) + ' ' + d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+    const folio = `INV-${String(inv.id).padStart(4, '0')}`;
+    return `<tr>
+      <td><span class="badge badge-gray" style="font-family:monospace">${folio}</span></td>
+      <td>${dateStr}</td>
+      <td style="font-weight:600;color:var(--text-primary)">${inv.param || '—'}</td>
+      <td>${inv.estado==='cerrada'?'<span class="badge badge-green">🟢 Cerrada</span>':'<span class="badge badge-orange">🟠 Abierta</span>'}</td>
+      <td>${inv.respNombre ? inv.respNombre + ' (' + inv.respArea + ')' : '—'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-secondary btn-sm" onclick="loadInvestigationToForm(${inv.id})">🔍 Ver</button>
+        <button class="btn btn-secondary btn-sm" onclick="printInvestigation(${inv.id})">🖨️ Imprimir</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function printInvestigation(id) {
+  loadInvestigationToForm(id);
+  setTimeout(() => window.print(), 200);
+}
 
 // ─── PRINT / PDF REPORT ───────────────────────────────────────────────
 function printDashboardReport() {

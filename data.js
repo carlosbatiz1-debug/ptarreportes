@@ -42,7 +42,7 @@ const TABS = [
 ];
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const STORAGE = { RECORDS: 'wtp_records_v2', LIMITS: 'wtp_limits_v2', CONDITIONS: 'wtp_conditions_v1' };
+const STORAGE = { RECORDS: 'wtp_records_v2', LIMITS: 'wtp_limits_v2', CONDITIONS: 'wtp_conditions_v1', INVESTIGATIONS: 'wtp_investigations_v1' };
 
 function getLimits() { try { return JSON.parse(localStorage.getItem(STORAGE.LIMITS)) || {}; } catch { return {}; } }
 function saveLimits(l) { localStorage.setItem(STORAGE.LIMITS, JSON.stringify(l)); }
@@ -53,6 +53,9 @@ function getAllConditions() { try { return JSON.parse(localStorage.getItem(STORA
 function getCondition(y,m) { return getAllConditions()[`${y}-${String(m).padStart(2,'0')}`]||null; }
 function saveCondition(y,m,text) { const all=getAllConditions(), k=`${y}-${String(m).padStart(2,'0')}`; if(text&&text.trim()) all[k]={text:text.trim(),savedAt:new Date().toISOString()}; else delete all[k]; localStorage.setItem(STORAGE.CONDITIONS,JSON.stringify(all)); }
 function deleteCondition(y,m) { const all=getAllConditions(); delete all[`${y}-${String(m).padStart(2,'0')}`]; localStorage.setItem(STORAGE.CONDITIONS,JSON.stringify(all)); }
+
+function getAllInvestigations() { try { return JSON.parse(localStorage.getItem(STORAGE.INVESTIGATIONS)) || []; } catch { return []; } }
+function saveInvestigations(arr) { localStorage.setItem(STORAGE.INVESTIGATIONS, JSON.stringify(arr)); }
 
 function checkCompliance(param, val, limits) {
   if (val===null||val===undefined||val==='') return null;
